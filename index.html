@@ -24,7 +24,7 @@ label{font-weight:600;font-size:.95rem} .field{display:flex;flex-direction:colum
 <body>
 <div class="app">
   <h1>🇫🇷 Thẻ ghi nhớ tiếng Pháp</h1>
-  <p class="muted">Mở trang này bằng Safari hoặc Chrome, không dùng trình xem HTML trong Messenger. Lật thẻ để xem nghĩa, ví dụ và bảng chia động từ. Bộ 5.000 từ B1–B2 được nhúng trực tiếp trong trang để tránh lỗi tải danh sách trên iPhone. Có thể tra nghĩa trực tuyến bằng dict.minhqnd.com; kết quả tự động vẫn cần kiểm tra ngữ cảnh. Bảng chia động từ dùng dữ liệu Verbiste qua conjugation-fr.</p>
+  <p class="muted">Mở trang này bằng Safari hoặc Chrome, không dùng trình xem HTML trong Messenger. Lật thẻ để xem nghĩa, ví dụ và bảng chia động từ. Nhấn “Nghe phát âm” để nghe cách đọc tiếng Pháp bằng giọng đọc của thiết bị. Bộ 5.000 từ B1–B2 được nhúng trực tiếp trong trang để tránh lỗi tải danh sách trên iPhone. Có thể tra nghĩa trực tuyến bằng dict.minhqnd.com; kết quả tự động vẫn cần kiểm tra ngữ cảnh. Bảng chia động từ dùng dữ liệu Verbiste qua conjugation-fr.</p>
   <section class="panel">
     <div class="toolbar">
       <div class="field"><label for="mode">Bộ thẻ</label><select id="mode"><option value="all">Tất cả từ</option><option value="new">Từ mới</option><option value="weak">Cần ôn lại</option><option value="due">Đến hạn ôn</option></select></div>
@@ -52,6 +52,7 @@ label{font-weight:600;font-size:.95rem} .field{display:flex;flex-direction:colum
   </section>
   <div class="buttons">
     <button id="flip" class="primary">Lật thẻ / Xem nghĩa</button>
+    <button id="speak" type="button" aria-label="Nghe phát âm từ tiếng Pháp">🔊 Nghe phát âm</button>
     <button id="no" class="again">↻ Chưa nhớ</button>
     <button id="yes" class="good">✓ Đã nhớ</button>
     <button id="next">Thẻ tiếp theo →</button>
@@ -458,7 +459,33 @@ async function flip(){
   render();
   $("status").textContent=isFlipped?"Đã hiện nghĩa và dạng chia.":"Đã quay lại mặt trước.";
 }
-function move(){if(!deck.length)return;currentIndex=(currentIndex+1)%deck.length;isFlipped=false;render();}
+function speakFrench(text){
+  const phrase=String(text||"").trim();
+  if(!phrase){$("status").textContent="Không có từ tiếng Pháp để phát âm.";return;}
+  if(!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)){
+    $("status").textContent="Trình duyệt này chưa hỗ trợ phát âm trực tiếp. Hãy mở trang bằng Safari hoặc Chrome mới nhất.";
+    return;
+  }
+  try{
+    window.speechSynthesis.cancel();
+    const utterance=new SpeechSynthesisUtterance(phrase);
+    utterance.lang="fr-FR";
+    utterance.rate=0.88;
+    utterance.pitch=1;
+    utterance.volume=1;
+    const voices=window.speechSynthesis.getVoices();
+    const frenchVoice=voices.find(v=>/^fr([-_]|$)/i.test(v.lang)&&/france|français|french/i.test(v.name))
+      || voices.find(v=>/^fr([-_]|$)/i.test(v.lang));
+    if(frenchVoice) utterance.voice=frenchVoice;
+    utterance.onstart=()=>{$("status").textContent="Đang phát âm tiếng Pháp…";};
+    utterance.onend=()=>{$("status").textContent="Đã phát âm: "+phrase;};
+    utterance.onerror=(event)=>{$("status").textContent="Không phát được âm thanh ("+(event.error||"lỗi phát âm")+"). Hãy kiểm tra âm lượng hoặc cài giọng tiếng Pháp trên thiết bị.";};
+    window.speechSynthesis.speak(utterance);
+  }catch(error){
+    $("status").textContent="Không khởi động được phát âm: "+(error.message||"lỗi trình duyệt");
+  }
+}
+function move(){if(!deck.length)return;try{window.speechSynthesis?.cancel();}catch(e){}currentIndex=(currentIndex+1)%deck.length;isFlipped=false;render();}
 function save(){try{localStorage.setItem(STORE_KEY,JSON.stringify(cards));}catch(e){}}
 function rate(remembered){
   const c=deck[currentIndex];if(!c){$("status").textContent="Không có thẻ để đánh giá.";return;}
@@ -524,6 +551,11 @@ async function loadCefr(){
 $("card").addEventListener("click",flip);
 $("card").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();flip();}});
 $("flip").addEventListener("click",flip);
+$("speak").addEventListener("click",()=>{
+  const c=deck[currentIndex];
+  if(!c){$("status").textContent="Không có thẻ để phát âm.";return;}
+  speakFrench(c.fr);
+});
 $("yes").addEventListener("click",()=>rate(true));
 $("no").addEventListener("click",()=>rate(false));
 $("next").addEventListener("click",()=>{move();$("status").textContent="Đã chuyển sang thẻ tiếp theo.";});
